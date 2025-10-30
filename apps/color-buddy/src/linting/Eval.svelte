@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte"; // ✅ 新增
   import type { LintResult } from "color-buddy-palette-lint";
 
   import IgnoreIcon from "virtual:icons/fa6-solid/eye-slash";
@@ -18,6 +19,28 @@
   import QuestionIcon from "virtual:icons/fa6-solid/circle-question";
 
   import { loadLints } from "../lib/api-calls";
+
+  // ✅ 新增逻辑：页面加载时自动选择 Default 测试配置
+  onMount(() => {
+    try {
+      // 如果 lintStore 里有当前测试模式字段，就自动设置为 Default
+      if (!$lintStore.selectedChecklistType) {
+        console.log("No test config selected, defaulting to 'Default'");
+        // 方法一：如果 store 有 setter
+        if (lintStore.setChecklistType) {
+          lintStore.setChecklistType("Default");
+        } 
+        // 方法二：直接赋值（大多数版本 Color Buddy 是这样）
+        else {
+          $lintStore.selectedChecklistType = "Default";
+        }
+      }
+    } catch (e) {
+      console.warn("Auto-select Default test config failed:", e);
+    }
+  });
+
+  // ---------------- 原代码 ----------------
 
   $: currentPal = $colorStore.palettes[$colorStore.currentPal];
   $: evalConfig = currentPal.evalConfig;

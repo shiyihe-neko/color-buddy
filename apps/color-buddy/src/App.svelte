@@ -8,20 +8,14 @@
 
   import { logEvent } from "./lib/api-calls";
 
-  onMount(() => {
-    logEvent(
-      "start-up",
-      // localStorage.getItem("color-pal"),
-      {},
-      $configStore.userName
-    );
+  let showPrompt = true;
 
-    // check if there's a palette specified in the url
+  onMount(() => {
+    logEvent("start-up", {}, $configStore.userName);
+
+    if (sessionStorage.getItem("cb_seen_prompt") === "1") showPrompt = false;
+
     const url = new URL(window.location.href);
-    // const colors = url.searchParams.get("colors");
-    // const background = url.searchParams.get("background") || "#ffffff";
-    // const palName = url.searchParams.get("palName");
-    // const space = url.searchParams.get("space");
     const pal = deserializePaletteForUrl(window.location.href);
     if (pal) {
       colorStore.createNewPal(pal);
@@ -31,35 +25,17 @@
       url.searchParams.delete("space");
       window.history.replaceState({}, "", url.toString());
     }
-    // // } else
-    // if (colors) {
-    //   console.log(colors, background, palName, space);
-    //   let parsedColors = [];
-    //   try {
-    //     parsedColors = JSON.parse(colors || "[]");
-    //   } catch (e) {
-    //     console.error(e);
-    //   }
-    //   const newPal = makePalFromString(parsedColors, background);
-    //   if (palName) {
-    //     newPal.name = palName;
-    //   }
-    //   if (space) {
-    //     newPal.colorSpace = space as any;
-    //   }
-    //   if (parsedColors.length > 0) {
-    //     console.log("here", newPal);
-    //     colorStore.createNewPal(newPal);
-    //   }
-
-    //   // remove the palette from the url
-    //   url.searchParams.delete("colors");
-    //   url.searchParams.delete("background");
-    //   url.searchParams.delete("palName");
-    //   url.searchParams.delete("space");
-    //   window.history.replaceState({}, "", url.toString());
-    // }
   });
+
+  function acknowledge() {
+    showPrompt = false;
+    sessionStorage.setItem("cb_seen_prompt", "1");
+    const focusTarget =
+      document.getElementById("kb-focus-target") ||
+      document.getElementById("app-root") ||
+      document.body;
+    focusTarget?.focus?.({ preventScroll: true });
+  }
 
   // make sure no focused colors are out of bounds
   $: focusedColors = $focusStore.focusedColors;
@@ -98,13 +74,10 @@
   $: route = $configStore.route;
   $: evalRoute = $configStore.evalDisplayMode;
   const bindStr = "!!";
-  // it appears that there is a bug in the vega debounce implementation, that causes the second argument to not fire
   let updateSearchDebounced = debounce(10, (x: [any, string]) => {
     const [pal, ignoreString] = x;
-    // keep the noise down on the console
     if ((route !== "eval" || evalRoute !== "check-customization") && pal) {
       lintStore.setLoadState("loading");
-
       const outPal = {
         ...pal,
         evalConfig: {
@@ -117,7 +90,6 @@
       });
     }
   });
-  // this weird foot work is to circumvent the svelte reactivity which is weird aggressive in this one specific case
   $: globalString = $colorStore.globallyIgnoredLints.join(bindStr);
   $: globalString, updateSearchDebounced([currentPal, globalString]);
 
@@ -133,6 +105,12 @@
     (x) => x.kind === "success" && !x.passes
   ).length;
 </script>
+
+<div
+  id="kb-focus-target"
+  tabindex="0"
+  style="position:fixed;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;"
+></div>
 
 <header class="flex w-full bg-stone-800 justify-between min-h-12">
   <div class="flex" id="top-controls">
@@ -175,16 +153,12 @@
     <Config />
   </div>
 </header>
-<main class="flex h-full">
-  <!-- left and main panel -->
+
+<main class="flex h-full" id="app-root" tabindex="-1">
   <div class="flex flex-col">
-    <!-- name -->
     <Title />
-    <!-- main content -->
     <div class="flex h-full">
-      <!-- left -->
       <LeftPanel />
-      <!-- main -->
       <div
         class="h-full flex flex-col grow main-content border-b border-l border-stone-200"
       >
@@ -204,7 +178,7 @@
       </div>
     </div>
   </div>
-  <!-- right col -->
+
   <div
     class="flex flex-col w-full border-b border-l border-stone-200 h-full"
     id="right-col"
@@ -218,15 +192,9 @@
           // @ts-ignore
           configStore.setRoute(x);
         }}
-        formatter={(x) => {
-          if (x === "eval") {
-            return "Evaluation";
-          } else if (x === "compare") {
-            return "Comparison";
-          } else {
-            return "Examples";
-          }
-        }}
+        formatter={(x) =>
+          x === "eval" ? "Evaluation" : x === "compare" ? "Comparison" : "Examples"
+        }
       >
         <div slot="menu" let:tab>
           {#if tab === "eval" && numPassing > 0}
@@ -237,7 +205,6 @@
                 cy={9}
                 fill={"rgb(185 28 28 / var(--tw-bg-opacity))"}
               />
-              <!-- text aligned with center -->
               <text
                 x={9}
                 y={13.5}
@@ -271,8 +238,54 @@
   <TourProvider />
 {/if}
 
+{#if showPrompt}
+  <div class="cb-toast cb-toast-center">
+    <strong>Start using Color Buddy</strong>
+    <p style="margin: 8px 0 16px;">Click “Okay” to begin.</p>
+    <button on:click={acknowledge}>Okay</button>
+  </div>
+{/if}
+
 <style>
   .main-content {
     min-width: 0;
+  }
+
+  .cb-toast {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 40px 60px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    z-index: 9999;
+    min-width: 360px;
+    max-width: 90%;
+    text-align: center;
+    font-size: 1.2rem;
+    line-height: 1.6;
+    color: #111;
+  }
+
+  .cb-toast-center {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+
+  .cb-toast button {
+    padding: 10px 24px;
+    border-radius: 8px;
+    border: none;
+    background: #2b8a3e;
+    color: #fff;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: all 0.2s ease;
+  }
+
+  .cb-toast button:hover {
+    background: #256f33;
+    transform: scale(1.05);
   }
 </style>
