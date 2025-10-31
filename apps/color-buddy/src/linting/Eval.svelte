@@ -1,14 +1,10 @@
 <script lang="ts">
-  import { onMount } from "svelte"; // ✅ 新增
   import type { LintResult } from "color-buddy-palette-lint";
-
   import IgnoreIcon from "virtual:icons/fa6-solid/eye-slash";
   import ShowIcon from "virtual:icons/fa6-solid/eye";
-
   import colorStore from "../stores/color-store";
   import configStore from "../stores/config-store";
   import lintStore from "../stores/lint-store";
-
   import { lint } from "../lib/api-calls";
   import { buttonStyle } from "../lib/styles";
   import LintDisplay from "./LintDisplay.svelte";
@@ -17,34 +13,34 @@
   import { lintGroupNames, typeToImg } from "../constants";
   import Tooltip from "../components/Tooltip.svelte";
   import QuestionIcon from "virtual:icons/fa6-solid/circle-question";
-
   import { loadLints } from "../lib/api-calls";
+  
+  // ===== 新增：导入 DEFAULT_LINT_LIST =====
+  import { DEFAULT_LINT_LIST } from "../lib/pre-built-lint-configs";
+  // =====================================
 
-  // ✅ 新增逻辑：页面加载时自动选择 Default 测试配置
-  onMount(() => {
-    try {
-      // 如果 lintStore 里有当前测试模式字段，就自动设置为 Default
-      if (!$lintStore.selectedChecklistType) {
-        console.log("No test config selected, defaulting to 'Default'");
-        // 方法一：如果 store 有 setter
-        if (lintStore.setChecklistType) {
-          lintStore.setChecklistType("Default");
-        } 
-        // 方法二：直接赋值（大多数版本 Color Buddy 是这样）
-        else {
-          $lintStore.selectedChecklistType = "Default";
-        }
-      }
-    } catch (e) {
-      console.warn("Auto-select Default test config failed:", e);
-    }
-  });
-
-  // ---------------- 原代码 ----------------
+  // ===== 新增：添加初始化标志 =====
+  let hasInitialized = false;
+  // ===============================
 
   $: currentPal = $colorStore.palettes[$colorStore.currentPal];
   $: evalConfig = currentPal.evalConfig;
   $: lintResults = $lintStore.currentChecks;
+  
+  // ===== 新增：自动应用 Default 预设的 reactive statement =====
+  $: {
+    // 当满足以下条件时，自动应用 Default 预设：
+    // 1. lints 已经加载完成（lints.length > 0）
+    // 2. 当前没有任何被忽略的 lints（globallyIgnoredLints.length === 0）
+    // 3. 还没有执行过初始化（!hasInitialized）
+    if ($lintStore.lints.length > 0 && 
+        $colorStore.globallyIgnoredLints.length === 0 && 
+        !hasInitialized) {
+      applyDefaultPreset();
+      hasInitialized = true;
+    }
+  }
+  // ========================================================
 
   $: lintGroups = lintResults.reduce(
     (acc, lintResult) => {
@@ -68,6 +64,21 @@
     {} as Record<string, LintResult[]>
   );
 
+  // ===== 新增：应用 Default 预设的函数 =====
+  function applyDefaultPreset() {
+    // 获取所有可用的 lints
+    const allLints = $lintStore.lints;
+    // 创建一个 Set 包含所有应该被启用的 lint IDs
+    const enabledSet = new Set(DEFAULT_LINT_LIST);
+    // 计算应该被忽略的 lints（即不在 DEFAULT_LINT_LIST 中的）
+    const ignoredLints = allLints
+      .filter((lint) => !enabledSet.has(lint.id))
+      .map((lint) => lint.id);
+    // 设置全局忽略列表
+    colorStore.setGloballyIgnoredLints(ignoredLints);
+  }
+  // ==========================================
+
   function setGroupTo(checks: LintResult[], ignore: boolean) {
     const newEvalConfig = { ...evalConfig };
     checks.forEach((check) => {
@@ -75,6 +86,7 @@
     });
     colorStore.setCurrentPalEvalConfig(newEvalConfig);
   }
+
   $: displayMode = $configStore.evalDisplayMode;
 
   function refreshLints() {
@@ -107,6 +119,8 @@
 {/if}
 <div class=" w-full flex py-1 px-2 items-end bg-stone-100">
   <div class="flex">
+    <!-- ===== 注释掉 Choose tests 和 Customize tests 按钮 ===== -->
+    <!--
     <GlobalLintConfig />
     <div class="ml-1">
       <button
@@ -122,6 +136,8 @@
         Customize tests
       </button>
     </div>
+    -->
+    <!-- ===== 注释结束 ===== -->
   </div>
   {#if numIgnored > 0}
     <button
@@ -140,6 +156,8 @@
       Unhide all
     </button>
   {/if}
+  <!-- ===== 注释掉帮助问号图标 ===== -->
+  <!--
   <Tooltip>
     <div class="text-sm max-w-md" slot="content">
       This collection of checks validates whether or not your palette matches a
@@ -150,6 +168,8 @@
       <QuestionIcon />
     </button>
   </Tooltip>
+  -->
+  <!-- ===== 注释结束 ===== -->
 </div>
 <div class="flex h-full">
   <div class="flex flex-col ml-2">

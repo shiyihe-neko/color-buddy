@@ -34,7 +34,7 @@ const InitialStore: StorageData = {
     makeExample("Example 3"),
   ],
   currentPal: 0,
-  globallyIgnoredLints: [...DEFAULT_LINT_SET],
+  globallyIgnoredLints: [],
 };
 
 function convertStoreHexToColor(store: StorageData): StoreData {
@@ -73,6 +73,10 @@ function addDefaults(store: Partial<StorageData>): StorageData {
 }
 
 function createStore() {
+  // ===== 新增：每次刷新页面清除保存的数据，回到默认状态 =====
+  localStorage.removeItem("color-pal");
+  // ============================================================
+  
   const target =
     localStorage.getItem("color-pal") || JSON.stringify(InitialStore);
   let storeData: StoreData = convertStoreHexToColor(
